@@ -1,7 +1,9 @@
 # contrib/my_first_extension/Makefile
 
 MODULE_big = my_first_extension
-OBJS = my_first_extension.o
+OBJS = calculate_digit.o \
+       generate_check_digit.o \
+       validate_isr_id.o
 
 EXTENSION = my_first_extension
 DATA = my_first_extension--1.0.sql
