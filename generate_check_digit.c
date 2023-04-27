@@ -11,9 +11,6 @@
  *-------------------------------------------------------------------------
  */
 
-#include "postgres.h"
-
-#include "fmgr.h"
 #include "time.h"
 
 #include "calculate_digit.h"
