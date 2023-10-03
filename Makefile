@@ -9,7 +9,7 @@ EXTENSION = my_first_extension
 DATA = my_first_extension--1.0.sql
 PGFILEDESC = "my_first_extension - ID generation"
 
-REGRESS = my_first_extension
+REGRESS = my_test
 
 SHLIB_LINK += $(UUID_LIBS)
 

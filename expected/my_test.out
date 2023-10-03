@@ -1,0 +1,49 @@
+CREATE EXTENSION my_first_extension;
+SELECT generate_check_digit('327');
+ generate_check_digit 
+----------------------
+                 3283
+(1 row)
+
+SELECT generate_check_digit('816');
+ generate_check_digit 
+----------------------
+                 8171
+(1 row)
+
+SELECT generate_check_digit('-16');
+ generate_check_digit 
+----------------------
+                   -1
+(1 row)
+
+SELECT generate_check_digit('0');
+ generate_check_digit 
+----------------------
+                    0
+(1 row)
+
+SELECT generate_check_digit('Hi');
+ generate_check_digit 
+----------------------
+                    0
+(1 row)
+
+SELECT validate_check_digit('3283');
+ validate_check_digit 
+----------------------
+ t
+(1 row)
+
+SELECT validate_check_digit('123');
+ validate_check_digit 
+----------------------
+ f
+(1 row)
+
+SELECT validate_check_digit('0');
+ validate_check_digit 
+----------------------
+ f
+(1 row)
+
