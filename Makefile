@@ -3,7 +3,7 @@
 MODULE_big = my_first_extension
 OBJS = calculate_digit.o \
        generate_check_digit.o \
-       validate_isr_id.o
+       validate_check_digit.o
 
 EXTENSION = my_first_extension
 DATA = my_first_extension--1.0.sql
@@ -14,7 +14,7 @@ REGRESS = my_first_extension
 SHLIB_LINK += $(UUID_LIBS)
 
 ifdef USE_PGXS
-PG_CONFIG = pg_config
+PG_CONFIG =/usr/local/pgsql/bin/pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 else

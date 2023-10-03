@@ -1,6 +1,5 @@
 # my_first_extension
-comment = 'generate ID of Israel\'s resident'
+comment = 'generate ID of Russian\'s resident'
 default_version = '1.0'
 module_pathname = '$libdir/my_first_extension'
 relocatable = true
-trusted = true
