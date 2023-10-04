@@ -1,0 +1,539 @@
+
+# ======================================================
+# ЕСЛИ НЕ ДЕЛАЛИ 1ю лабораторную работу
+# 1. Установить докер, если не установлен (пример для Ubuntu)
+# ======================================================
+
+# Обновление списка пакетов в вашем дистрибутиве Ubuntu
+sudo apt-get update 
+
+# Установка пакетов, необходимых для установки Docker:
+# - ca-certificates: для работы с HTTPS
+# - curl: для передачи данных
+# - gnupg: для работы с ключами GPG
+# - lsb-release: для определения версии Ubuntu
+sudo apt-get -y install ca-certificates curl gnupg lsb-release
+
+# Создание директории для хранения ключа GPG Docker
+sudo mkdir -p /etc/apt/keyrings
+
+# Загрузка ключа GPG Docker и добавление его в хранилище ключей apt
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# Добавление репозитория Docker в список источников APT
+# Это позволяет Ubuntu устанавливать пакеты Docker из официального репозитория Docker
+echo \
+	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
+
+# Обновление списка пакетов, учитывая новый репозиторий Docker
+sudo apt-get update 
+
+# Установка компонентов Docker:
+# - docker-ce: Docker Engine, ядро Docker
+# - docker-ce-cli: Интерфейс командной строки Docker
+# - containerd.io: Демон containerd
+# - docker-compose-plugin: Плагин Docker Compose
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+
+# ======================================================
+# ЕСЛИ НЕ ДЕЛАЛИ 1ю лабораторную работу
+# 2. Скачать образ Ubuntu 22 и запустить контейнер
+# ======================================================
+
+# Скачивание образа Ubuntu 22.04
+sudo docker pull ubuntu:22.04 
+
+# Запись значения '0' в /proc/sys/kernel/yama/ptrace_scope
+# Это необходимо, чтобы GDB мог прикрепляться к процессам внутри Docker-контейнера
+echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope 
+
+# Запуск Docker-контейнера на основе образа Ubuntu 22.04
+# Опции:
+# --cap-add=SYS_PTRACE: предоставляет дополнительные привилегии ptrace (для отладчика)
+# -it: интерактивный терминальный режим
+# --name my_ubuntu_container: задает имя контейнера
+sudo docker run \
+	--cap-add=SYS_PTRACE \
+	-it --name my_ubuntu_container ubuntu:22.04 /bin/bash
+
+# (Опционально) Запуск контейнера, если он был остановлен
+# docker start my_ubuntu_container
+
+
+# ======================================================
+# ЕСЛИ НЕ ДЕЛАЛИ 1ю лабораторную работу
+# 3. Установить необходимые для сборки пакеты
+# ======================================================
+
+# Установка переменной окружения DEBIAN_FRONTEND в 'noninteractive'
+# Это предотвращает появление интерактивных запросов во время установки пакетов
+DEBIAN_FRONTEND=noninteractive 
+
+# Обновление списка пакетов в контейнере Ubuntu
+apt-get update 
+
+apt-get install -y \
+	jq git tree nano vim gdb \
+	build-essential cpanminus slapd ldap-utils libldap2-dev \
+	autoconf bison clang-11 devscripts dpkg-dev flex \
+	libldap2-dev libdbi-perl libgssapi-krb5-2 libicu-dev \
+	krb5-kdc krb5-admin-server libssl-dev libpam0g-dev \
+	libkrb5-dev krb5-user libcurl4-openssl-dev \
+	perl perl-modules libipc-run-perl libtest-simple-perl libtime-hires-perl \
+	liblz4-dev libpam-dev libreadline-dev libselinux1-dev libsystemd-dev \
+	libxml2-dev libxslt-dev libzstd-dev llvm-11-dev locales-all pkg-config \
+	python3-dev uuid-dev zlib1g-dev \
+    openjade docbook-xml docbook-xsl opensp libxml2-utils xsltproc \
+    libjson-perl curl time
+
+
+# ======================================================
+# ЕСЛИ НЕ ДЕЛАЛИ 1ю лабораторную работу
+# 4. Создание группы и пользователя PostgreSQL
+# ======================================================
+
+# Создание системной группы 'postgres'
+groupadd -r postgres 
+
+# Создание системного пользователя 'postgres' и добавление его в группу 'postgres'
+# Опции:
+# -r: создание системного пользователя
+# -g postgres: указание группы пользователя
+# -d /var/lib/postgresql: указание домашнего каталога
+# -s /bin/bash: указание оболочки
+
+useradd -r -g postgres -d /var/lib/postgresql -s /bin/bash postgres
+mkdir -p /var/lib/postgresql
+chown postgres:postgres /var/lib/postgresql
+chmod 700 /var/lib/postgresql
+mkdir -p /var/run/postgresql
+chown postgres:postgres /var/run/postgresql
+
+mkdir -p /var/log/postgresql
+chown postgres:postgres /var/log/postgresql
+
+
+mkdir -p /usr/local/pgsql
+chown postgres:postgres /usr/local/pgsql
+
+
+
+# ======================================================
+# ЕСЛИ НЕ ДЕЛАЛИ 1ю лабораторную работу
+# 5. Клонирование и сборка PostgreSQL
+# ======================================================
+
+# Переключение на пользователя 'postgres' и клонирование исходного кода PostgreSQL
+# с определенной ветки (в данном случае REL_16_STABLE) и сборка PostgreSQL
+su - postgres
+
+git clone -b REL_16_STABLE https://github.com/postgres/postgres postgres_src
+cd postgres_src/
+
+./configure --prefix=/usr/local/pgsql \
+	--enable-tap-tests \
+	--with-python \
+	--with-icu \
+	--with-lz4 \
+	--with-zstd \
+	--enable-debug \
+	--enable-cassert
+
+make -j 4
+make install
+
+# ======================================================
+# 6. Инициализация и запуск PostgreSQL
+# ======================================================
+
+
+# ----
+# Если выполнялась 1я лабораторная работа:
+/usr/local/pgsql/bin/pg_ctl \
+	-D /var/lib/postgresql/my_data \
+	stop
+# ----
+
+
+# Создание каталога для данных базы данных
+rm -rf /var/lib/postgresql/my_data
+mkdir /var/lib/postgresql/my_data
+
+# Инициализация кластера базы данных в созданной директории
+/usr/local/pgsql/bin/initdb \
+	-D /var/lib/postgresql/my_data
+
+# Добавление параметров в файл конфигурации postgresql.conf
+# для настройки журналирования и других параметров
+cat >> /var/lib/postgresql/my_data/postgresql.conf << EOL
+logging_collector = on
+log_directory = '/var/log/postgresql'
+log_statement = 'all'
+log_min_messages = debug1
+log_duration = on
+log_filename = 'postgresql.log'
+log_destination = 'csvlog'
+log_error_verbosity = verbose
+log_lock_waits = on
+EOL
+
+# Запуск PostgreSQL с использованием указанной директории данных
+/usr/local/pgsql/bin/pg_ctl \
+	-D /var/lib/postgresql/my_data \
+	start
+
+
+# ======================================================
+# Работа с расширением PostgreSQL
+# ======================================================
+
+# Создание директории для расширения и написание исходного
+# кода расширения на C
+# Здесь создается расширение для PostgreSQL, которое предоставляет
+# две функции:
+# - calculate_sum_id: вычисляет контрольную сумму для заданного
+#		идентификатора
+# - validate_check_digit: проверяет корректность контрольной цифры
+# 		для заданного идентификатора
+
+# создаем директорию для расширений
+mkdir -p contrib/my_first_extension
+
+cat > contrib/my_first_extension/calculate_digit.c << EOL
+#include "calculate_digit.h"
+
+uint8_t calculate_sum_id(uint64_t id)
+{
+	uint8_t checkDigit = 2;
+	uint8_t sum = 0;
+
+	while(id)
+	{
+		uint8_t tmp = (id % 10) * checkDigit;
+		if(tmp > 9)
+		{
+			sum += tmp / 10 + tmp % 10;
+		}
+		else
+		{
+			sum += tmp;
+		}
+
+		id /= 10;
+		checkDigit = (2 == checkDigit) ? 1 : 2;
+	}
+
+	return sum;
+}
+EOL
+
+cat > contrib/my_first_extension/calculate_digit.h << EOL
+#include <stdint.h>
+
+uint8_t calculate_sum_id(uint64_t id);
+EOL
+
+cat > contrib/my_first_extension/validate_check_digit.c << EOL
+#include "postgres.h"
+
+#include "fmgr.h"
+#include "time.h"
+
+#include "calculate_digit.h"
+
+PG_FUNCTION_INFO_V1(validate_check_digit);
+
+Datum
+validate_check_digit(PG_FUNCTION_ARGS)
+{
+	text  *name = PG_GETARG_TEXT_PP(0);
+	uint64_t id = atol( name->vl_dat );
+
+	if(id > 999999999) ///< id must has 9 size length
+	{
+		return false;
+	}
+
+	return calculate_sum_id(id) % 10;
+}
+EOL
+
+cat > contrib/my_first_extension/generate_check_digit.c << EOL
+#include "postgres.h"
+
+#include "fmgr.h"
+#include "time.h"
+
+#include "calculate_digit.h"
+
+PG_MODULE_MAGIC;
+
+PG_FUNCTION_INFO_V1(generate_check_digit);
+
+Datum
+generate_check_digit(PG_FUNCTION_ARGS)
+{
+	text  *name = PG_GETARG_TEXT_PP(0);
+	uint64_t id = atol( name->vl_dat );
+	uint8_t check_digit = 0;
+
+	if(id > 99999999) ///< id must has 8 size length
+	{
+		return -1;
+	}
+
+	check_digit = calculate_sum_id( id );
+	id = id * 10 + check_digit;
+
+	return id;
+}
+EOL
+
+cat > contrib/my_first_extension/my_first_extension.control << 'EOL'
+# my_first_extension
+comment = 'generate ID of Russian\'s resident'
+default_version = '1.0'
+module_pathname = '$libdir/my_first_extension'
+relocatable = true
+EOL
+
+
+cat > contrib/my_first_extension/my_first_extension--1.0.sql << EOL
+/* contrib/my_first_extension/my_first_extension--1.0.sql */
+
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use '''CREATE EXTENSION "my_first_extension"''' to load this file. \quit
+
+CREATE FUNCTION validate_check_digit(text)
+RETURNS boolean
+AS 'MODULE_PATHNAME', 'validate_check_digit'
+IMMUTABLE STRICT LANGUAGE C PARALLEL SAFE;
+
+CREATE FUNCTION generate_check_digit(text)
+RETURNS smallint
+AS 'MODULE_PATHNAME', 'generate_check_digit'
+IMMUTABLE STRICT LANGUAGE C PARALLEL SAFE;
+EOL
+
+cat > contrib/my_first_extension/Makefile << 'EOL'
+# contrib/my_first_extension/Makefile
+
+MODULE_big = my_first_extension
+OBJS = calculate_digit.o \
+       generate_check_digit.o \
+       validate_check_digit.o
+
+EXTENSION = my_first_extension
+DATA = my_first_extension--1.0.sql
+PGFILEDESC = "my_first_extension - ID generation"
+
+REGRESS = my_test
+
+SHLIB_LINK += $(UUID_LIBS)
+
+ifdef USE_PGXS
+PG_CONFIG =/usr/local/pgsql/bin/pg_config
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)
+else
+subdir = contrib/my_first_extension
+top_builddir = ../..
+include $(top_builddir)/src/Makefile.global
+include $(top_srcdir)/contrib/contrib-global.mk
+endif
+
+EOL
+
+
+make -C contrib/my_first_extension/
+make -C contrib/my_first_extension/ install
+
+/usr/local/pgsql/bin/psql -c 'create extension my_first_extension'
+
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('59'::text)'
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('-1'::text)"
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('Hi'::text)"
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('0'::text)'
+
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('93'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('0'::text)'
+/usr/local/pgsql/bin/psql -c "select validate_check_digit('Hi'::text)"
+
+/usr/local/pgsql/bin/psql -c 'drop extension my_first_extension'
+
+
+mkdir -p contrib/my_first_extension/sql/
+mkdir -p contrib/my_first_extension/expected/
+
+cat > contrib/my_first_extension/expected/my_test.out << EOL
+CREATE EXTENSION my_first_extension;
+SELECT generate_check_digit('327');
+ generate_check_digit 
+----------------------
+                 3283
+(1 row)
+
+SELECT generate_check_digit('816');
+ generate_check_digit 
+----------------------
+                 8171
+(1 row)
+
+SELECT generate_check_digit('-16');
+ generate_check_digit 
+----------------------
+                   -1
+(1 row)
+
+SELECT generate_check_digit('0');
+ generate_check_digit 
+----------------------
+                    0
+(1 row)
+
+SELECT generate_check_digit('Hi');
+ generate_check_digit 
+----------------------
+                    0
+(1 row)
+
+SELECT validate_check_digit('3283');
+ validate_check_digit 
+----------------------
+ t
+(1 row)
+
+SELECT validate_check_digit('123');
+ validate_check_digit 
+----------------------
+ f
+(1 row)
+
+SELECT validate_check_digit('0');
+ validate_check_digit 
+----------------------
+ f
+(1 row)
+
+EOL
+
+cat > contrib/my_first_extension/sql/my_test.sql << EOL
+CREATE EXTENSION my_first_extension;
+
+SELECT generate_check_digit('327');
+SELECT generate_check_digit('816');
+SELECT generate_check_digit('-16');
+SELECT generate_check_digit('0');
+SELECT generate_check_digit('Hi');
+
+SELECT validate_check_digit('3283');
+SELECT validate_check_digit('123');
+SELECT validate_check_digit('0');
+EOL
+
+make -C contrib/my_first_extension/ check
+
+# Очистка ранее созданных объектов сборки
+make -C contrib/my_first_extension/ clean
+
+
+# ========================================================
+# Работа с PGXS
+# ========================================================
+
+# PGXS - это система сборки расширений для PostgreSQL,
+# которая упрощает процесс сборки и тестирования расширений.
+
+cp -rf contrib/my_first_extension ../my_first_extension
+cd ../my_first_extension
+
+
+# Сборка и тестирование расширения с использованием PGXS
+USE_PGXS=1 make
+USE_PGXS=1 make install
+USE_PGXS=1 make installcheck
+
+/usr/local/pgsql/bin/psql -c 'create extension my_first_extension'
+
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('59'::text)'
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('-1'::text)"
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('Hi'::text)"
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('0'::text)'
+
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('93'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('0'::text)'
+/usr/local/pgsql/bin/psql -c "select validate_check_digit('Hi'::text)"
+
+# ========================================================
+# Обновление расширения
+# ========================================================
+
+sed -i '/PG_FUNCTION_INFO_V1(generate_check_digit);/a PG_FUNCTION_INFO_V1(my_function);' \
+	generate_check_digit.c
+
+echo 'Datum
+my_function(PG_FUNCTION_ARGS)
+{
+       text  *name = PG_GETARG_TEXT_PP(0);
+       uint64_t id = atol( name->vl_dat );
+
+   return id % 10;
+}' >> generate_check_digit.c
+
+cat > my_first_extension--1.0--1.1.sql << EOL
+/* contrib/my_first_extension/my_first_extension--1.1.sql */
+
+-- complain if script is sourced in psql, rather than via CREATE EXTENSION
+\echo Use '''CREATE EXTENSION "my_first_extension"''' to load this file. \quit
+
+CREATE OR REPLACE FUNCTION validate_check_digit(text)
+RETURNS boolean
+AS 'MODULE_PATHNAME', 'validate_check_digit'
+IMMUTABLE STRICT LANGUAGE C PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION generate_check_digit(text)
+RETURNS smallint
+AS 'MODULE_PATHNAME', 'generate_check_digit'
+IMMUTABLE STRICT LANGUAGE C PARALLEL SAFE;
+
+CREATE OR REPLACE FUNCTION my_function(text)
+RETURNS smallint
+AS 'MODULE_PATHNAME', 'my_function'
+IMMUTABLE STRICT LANGUAGE C PARALLEL SAFE;
+EOL
+
+sed -i 's/DATA = my_first_extension--1.0.sql/DATA = my_first_extension--1.0.sql my_first_extension--1.0--1.1.sql/' Makefile
+
+sed -i 's/default_version = '\''1.0'\''/default_version = '\''1.1'\''/' my_first_extension.control
+
+USE_PGXS=1 make clean all
+USE_PGXS=1 make install
+
+/usr/local/pgsql/bin/psql -c 'alter extension my_first_extension update'
+
+/usr/local/pgsql/bin/psql -c 'select my_function('30'::text)'
+/usr/local/pgsql/bin/psql -c 'select my_function('0'::text)'
+/usr/local/pgsql/bin/psql -c 'select my_function('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('59'::text)'
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('-1'::text)"
+/usr/local/pgsql/bin/psql -c "select generate_check_digit('Hi'::text)"
+/usr/local/pgsql/bin/psql -c 'select generate_check_digit('0'::text)'
+
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('345'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('93'::text)'
+/usr/local/pgsql/bin/psql -c 'select validate_check_digit('0'::text)'
+/usr/local/pgsql/bin/psql -c "select validate_check_digit('Hi'::text)"
+
+/usr/local/pgsql/bin/psql -c 'drop extension my_first_extension'
+
+
+# ======================================================
+# Готово
+# ======================================================
