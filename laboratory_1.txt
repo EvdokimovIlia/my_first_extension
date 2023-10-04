@@ -1,0 +1,230 @@
+
+    let currentURL = new URL(window.location.href);
+	currentURL.pathname = '/tdb/db_conf.json';
+	
+    fetch(currentURL.toString())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();  // Return the promise
+        })
+        .then(data => {
+            var toc = document.querySelector('.sidebar-primary-item');
+            var doc_items = data.doc_items;
+            if (toc) {
+                // Extract current URL parts
+                var pathParts = window.location.pathname.split('/').filter(Boolean);
+
+                var language = pathParts[0];
+                var version = pathParts[1];
+                var edition = pathParts[2];
+                var remainingPath = pathParts.slice(3).join('/');
+
+                if (language == 'ru') {
+                    var backToTopButton = document.getElementById('pst-back-to-top');
+                    if (backToTopButton) {
+                        // Iterate through child nodes and find the text node with "Back to top"
+                        for (var i = 0; i < backToTopButton.childNodes.length; i++) {
+                            if (backToTopButton.childNodes[i].nodeType === 3 && backToTopButton.childNodes[i].nodeValue.trim() === "Back to top") {
+                                backToTopButton.childNodes[i].nodeValue = " Наверх ";
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                var dropdown = document.createElement('select');
+                dropdown.id = "select_version";
+                dropdown.className = "btn dropdown-toggle";
+
+                doc_items.forEach(item => {
+                    var option = document.createElement('option');
+                    option.value = item.drop_down_item_text; // This can be adjusted based on your needs
+                    option.textContent = item.drop_down_item_text;
+                    dropdown.appendChild(option);
+                });
+
+
+                var currentURLPart = `/${version}/${edition}`;
+
+                // Find the item that matches the current URL structure
+                var matchingItem = doc_items.find(item => {
+                    return item.languages[language] && item.languages[language].url.includes(currentURLPart);
+                });
+
+                // If a matching item is found, set the dropdown selection
+                if (matchingItem) {
+                    for (var i = 0; i < dropdown.options.length; i++) {
+                        if (dropdown.options[i].value === matchingItem.drop_down_item_text) {
+                            dropdown.options[i].selected = true;
+                            break;
+                        }
+                    }
+                }
+
+                var titleElement = document.querySelector('.title.logo__title');
+
+                // Find the matching item in doc_items
+                var matchingItem = doc_items.find(item => {
+                    return item.languages[language] && item.languages[language].url.includes(edition);
+                });
+
+                if (matchingItem && matchingItem.languages[language]) {
+                    titleElement.textContent = matchingItem.languages[language].caption;
+                }
+
+                dropdown.addEventListener('change', function (event) {
+                    var selectedVersion = event.target.value;  // This assumes the dropdown values correspond to documentation versions
+
+                    // Find the corresponding edition (be, se, se1c) from doc_items based on the selected dropdown value
+                    for (var i = 0; i < doc_items.length; i++) {
+                        if (doc_items[i].drop_down_item_text === selectedVersion) {
+                            edition = new URL(doc_items[i].languages[language].url, window.location.origin).pathname.split('/').filter(Boolean)[2];
+                            break;
+                        }
+                    }
+
+                    var fragment = window.location.hash;
+                    var potentialNewURL = `/${language}/${version}/${edition}/${remainingPath}`;
+
+                    // Check if the new URL exists
+                    fetch(potentialNewURL, { method: 'HEAD' }).then(response => {
+                        if (response.ok) {
+                            // If the page exists, redirect to it
+                            window.location.href = `/${language}/${version}/${edition}/${remainingPath}${fragment}`;
+                        } else {
+                            var fallbackURL = `/${language}/${version}/${edition}/preface.html`;
+                            window.location.href = fallbackURL;
+                        }
+                    }).catch(() => {
+                        var fallbackURL = `/${language}/${version}/${edition}/preface.html`;
+                        window.location.href = fallbackURL;
+                    });
+                });
+
+                toc.appendChild(dropdown);
+
+                // =======================
+                // =======================
+                // Create the language links container
+                var fragment = window.location.hash;
+
+                var langDiv = document.createElement('div');
+                langDiv.style.textAlign = "center";
+                langDiv.style.marginTop = "10px";
+
+                // Create English link
+                var englishLink = document.createElement('a');
+                englishLink.className = "lang-button";
+                englishLink.innerText = "EN";
+
+                if (language !== 'en') {  // Avoid redirecting to the same page
+                    englishLink.href = `/en/${version}/${edition}/${remainingPath}${fragment}`;
+                } else {
+                    englishLink.href = "#";
+                    englishLink.style.fontWeight = "bold";
+                    englishLink.style.textDecoration = "underline";
+                }
+
+                langDiv.appendChild(englishLink);
+
+                // Space between links
+                langDiv.appendChild(document.createTextNode(" "));
+
+                // Create Russian link
+                var russianLink = document.createElement('a');
+                russianLink.className = "lang-button";
+                russianLink.innerText = "RU";
+
+                if (language !== 'ru') {  // Avoid redirecting to the same page
+                    russianLink.href = `/ru/${version}/${edition}/${remainingPath}${fragment}`;
+                } else {
+                    russianLink.href = "#";
+                    russianLink.style.fontWeight = "bold";
+                    russianLink.style.textDecoration = "underline";
+                }
+
+                langDiv.appendChild(russianLink);
+
+                // Append the language links container to the TOC or any other desired location
+                toc.appendChild(langDiv);
+
+            }
+        })
+        .catch(error => {
+            console.log('There was a problem with the fetch operation:', error.message);
+        });
+
+
+    // =======================    
+    if (!window.location.pathname.endsWith('/index.html')) {
+        var toctreeWrapper = document.querySelector('.toctree-wrapper.compound');
+        if (toctreeWrapper) {
+            toctreeWrapper.remove();
+        }
+    }
+
+
+    const authorElems = document.querySelectorAll(".component-author");
+    authorElems.forEach(function (elem) {
+        elem.remove();
+    });
+    const copyrightElems = document.querySelectorAll(".copyright");
+    copyrightElems.forEach(function (elem) {
+        elem.remove();
+    });
+
+    var sections = document.querySelectorAll('section');
+    sections.forEach(function (section) {
+        var header = section.querySelector('h1');
+        if (header) {
+            header.style.display = 'none';
+        }
+    });
+    //=====================
+
+
+    var admonitionTypes = ['.note', '.warning', '.tip', '.caution'];
+
+    admonitionTypes.forEach(function (type) {
+        var titles = document.querySelectorAll(`${type} > h3.title`);
+
+        titles.forEach(function (title) {
+            var newElement = document.createElement('p');
+            newElement.className = 'title admonition-title';
+            newElement.textContent = title.textContent;
+            title.parentNode.replaceChild(newElement, title);
+            newElement.parentElement.classList.add('admonition');
+        });
+    });
+
+
+    var informalTableDivs = document.querySelectorAll('div.informaltable');
+
+    informalTableDivs.forEach(function (tableDiv) {
+        // Change the class of the div
+        tableDiv.className = 'table-contents';
+
+        // Change the class of the inner table
+        var innerTable = tableDiv.querySelector('table.informaltable');
+        if (innerTable) {
+            innerTable.className = 'table';
+        }
+    });
+
+    var sidebar = document.querySelector('.sidebar-primary-item');
+
+    if (sidebar) {
+        // Create the new div element
+        var newDiv = document.createElement('div');
+        newDiv.style.textAlign = 'center';
+
+        // Create the image element
+        var img = document.createElement('img');
+        img.src = '_static/images/favicon-96x96.png';
+        img.style.maxWidth = '100%';
+        newDiv.appendChild(img);
+        sidebar.insertBefore(newDiv, sidebar.firstChild);
+    }
+});
