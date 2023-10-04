@@ -1,230 +1,375 @@
 
-    let currentURL = new URL(window.location.href);
-	currentURL.pathname = '/tdb/db_conf.json';
-	
-    fetch(currentURL.toString())
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();  // Return the promise
-        })
-        .then(data => {
-            var toc = document.querySelector('.sidebar-primary-item');
-            var doc_items = data.doc_items;
-            if (toc) {
-                // Extract current URL parts
-                var pathParts = window.location.pathname.split('/').filter(Boolean);
+# ======================================================
+# 1. Установить докер, если не установлен (пример для Ubuntu)
+# ======================================================
 
-                var language = pathParts[0];
-                var version = pathParts[1];
-                var edition = pathParts[2];
-                var remainingPath = pathParts.slice(3).join('/');
+sudo apt-get update
+sudo apt-get -y install \
+	ca-certificates \
+	curl \
+	gnupg \
+	lsb-release
 
-                if (language == 'ru') {
-                    var backToTopButton = document.getElementById('pst-back-to-top');
-                    if (backToTopButton) {
-                        // Iterate through child nodes and find the text node with "Back to top"
-                        for (var i = 0; i < backToTopButton.childNodes.length; i++) {
-                            if (backToTopButton.childNodes[i].nodeType === 3 && backToTopButton.childNodes[i].nodeValue.trim() === "Back to top") {
-                                backToTopButton.childNodes[i].nodeValue = " Наверх ";
-                                break;
-                            }
-                        }
-                    }
-                }
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
 
-                var dropdown = document.createElement('select');
-                dropdown.id = "select_version";
-                dropdown.className = "btn dropdown-toggle";
+echo \
+	"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+  $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list >/dev/null
 
-                doc_items.forEach(item => {
-                    var option = document.createElement('option');
-                    option.value = item.drop_down_item_text; // This can be adjusted based on your needs
-                    option.textContent = item.drop_down_item_text;
-                    dropdown.appendChild(option);
-                });
+sudo apt-get update
+
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 
 
-                var currentURLPart = `/${version}/${edition}`;
+# ======================================================
+# 2. Скачать образ Ubuntu 22 и запустить контейнер
+# ======================================================
 
-                // Find the item that matches the current URL structure
-                var matchingItem = doc_items.find(item => {
-                    return item.languages[language] && item.languages[language].url.includes(currentURLPart);
-                });
+docker pull ubuntu:22.04
 
-                // If a matching item is found, set the dropdown selection
-                if (matchingItem) {
-                    for (var i = 0; i < dropdown.options.length; i++) {
-                        if (dropdown.options[i].value === matchingItem.drop_down_item_text) {
-                            dropdown.options[i].selected = true;
-                            break;
-                        }
-                    }
-                }
+echo 0 | sudo tee /proc/sys/kernel/yama/ptrace_scope
 
-                var titleElement = document.querySelector('.title.logo__title');
+docker run --cap-add=SYS_PTRACE \
+	-it --name my_ubuntu_container ubuntu:22.04 /bin/bash
 
-                // Find the matching item in doc_items
-                var matchingItem = doc_items.find(item => {
-                    return item.languages[language] && item.languages[language].url.includes(edition);
-                });
+# docker start my_ubuntu_container
 
-                if (matchingItem && matchingItem.languages[language]) {
-                    titleElement.textContent = matchingItem.languages[language].caption;
-                }
+# ======================================================
+# 3. Установить необходимые для сборки пакеты
+# ======================================================
 
-                dropdown.addEventListener('change', function (event) {
-                    var selectedVersion = event.target.value;  // This assumes the dropdown values correspond to documentation versions
+DEBIAN_FRONTEND=noninteractive
 
-                    // Find the corresponding edition (be, se, se1c) from doc_items based on the selected dropdown value
-                    for (var i = 0; i < doc_items.length; i++) {
-                        if (doc_items[i].drop_down_item_text === selectedVersion) {
-                            edition = new URL(doc_items[i].languages[language].url, window.location.origin).pathname.split('/').filter(Boolean)[2];
-                            break;
-                        }
-                    }
+apt-get update
 
-                    var fragment = window.location.hash;
-                    var potentialNewURL = `/${language}/${version}/${edition}/${remainingPath}`;
-
-                    // Check if the new URL exists
-                    fetch(potentialNewURL, { method: 'HEAD' }).then(response => {
-                        if (response.ok) {
-                            // If the page exists, redirect to it
-                            window.location.href = `/${language}/${version}/${edition}/${remainingPath}${fragment}`;
-                        } else {
-                            var fallbackURL = `/${language}/${version}/${edition}/preface.html`;
-                            window.location.href = fallbackURL;
-                        }
-                    }).catch(() => {
-                        var fallbackURL = `/${language}/${version}/${edition}/preface.html`;
-                        window.location.href = fallbackURL;
-                    });
-                });
-
-                toc.appendChild(dropdown);
-
-                // =======================
-                // =======================
-                // Create the language links container
-                var fragment = window.location.hash;
-
-                var langDiv = document.createElement('div');
-                langDiv.style.textAlign = "center";
-                langDiv.style.marginTop = "10px";
-
-                // Create English link
-                var englishLink = document.createElement('a');
-                englishLink.className = "lang-button";
-                englishLink.innerText = "EN";
-
-                if (language !== 'en') {  // Avoid redirecting to the same page
-                    englishLink.href = `/en/${version}/${edition}/${remainingPath}${fragment}`;
-                } else {
-                    englishLink.href = "#";
-                    englishLink.style.fontWeight = "bold";
-                    englishLink.style.textDecoration = "underline";
-                }
-
-                langDiv.appendChild(englishLink);
-
-                // Space between links
-                langDiv.appendChild(document.createTextNode(" "));
-
-                // Create Russian link
-                var russianLink = document.createElement('a');
-                russianLink.className = "lang-button";
-                russianLink.innerText = "RU";
-
-                if (language !== 'ru') {  // Avoid redirecting to the same page
-                    russianLink.href = `/ru/${version}/${edition}/${remainingPath}${fragment}`;
-                } else {
-                    russianLink.href = "#";
-                    russianLink.style.fontWeight = "bold";
-                    russianLink.style.textDecoration = "underline";
-                }
-
-                langDiv.appendChild(russianLink);
-
-                // Append the language links container to the TOC or any other desired location
-                toc.appendChild(langDiv);
-
-            }
-        })
-        .catch(error => {
-            console.log('There was a problem with the fetch operation:', error.message);
-        });
+apt-get install -y \
+	jq git tree nano vim gdb \
+	build-essential cpanminus slapd ldap-utils libldap2-dev \
+	autoconf bison clang-11 devscripts dpkg-dev flex \
+	libldap2-dev libdbi-perl libgssapi-krb5-2 libicu-dev \
+	krb5-kdc krb5-admin-server libssl-dev libpam0g-dev \
+	libkrb5-dev krb5-user libcurl4-openssl-dev \
+	perl perl-modules libipc-run-perl libtest-simple-perl libtime-hires-perl \
+	liblz4-dev libpam-dev libreadline-dev libselinux1-dev libsystemd-dev \
+	libxml2-dev libxslt-dev libzstd-dev llvm-11-dev locales-all pkg-config \
+	python3-dev uuid-dev zlib1g-dev \
+    openjade docbook-xml docbook-xsl opensp libxml2-utils xsltproc \
+    libjson-perl curl time
 
 
-    // =======================    
-    if (!window.location.pathname.endsWith('/index.html')) {
-        var toctreeWrapper = document.querySelector('.toctree-wrapper.compound');
-        if (toctreeWrapper) {
-            toctreeWrapper.remove();
-        }
-    }
+# ======================================================
+# 4. Создать группу postgres и одноименного пользователя
+# ======================================================
+
+groupadd -r postgres
+useradd -r -g postgres -d /var/lib/postgresql -s /bin/bash postgres
+mkdir -p /var/lib/postgresql
+chown postgres:postgres /var/lib/postgresql
+chmod 700 /var/lib/postgresql
+mkdir -p /var/run/postgresql
+chown postgres:postgres /var/run/postgresql
+
+mkdir -p /var/log/postgresql
+chown postgres:postgres /var/log/postgresql
 
 
-    const authorElems = document.querySelectorAll(".component-author");
-    authorElems.forEach(function (elem) {
-        elem.remove();
-    });
-    const copyrightElems = document.querySelectorAll(".copyright");
-    copyrightElems.forEach(function (elem) {
-        elem.remove();
-    });
-
-    var sections = document.querySelectorAll('section');
-    sections.forEach(function (section) {
-        var header = section.querySelector('h1');
-        if (header) {
-            header.style.display = 'none';
-        }
-    });
-    //=====================
+mkdir -p /usr/local/pgsql
+chown postgres:postgres /usr/local/pgsql
 
 
-    var admonitionTypes = ['.note', '.warning', '.tip', '.caution'];
+# ======================================================
+# 5. Под пользователем postgres приступить к клониванию
+# и сборке исходного кода
+# ======================================================
 
-    admonitionTypes.forEach(function (type) {
-        var titles = document.querySelectorAll(`${type} > h3.title`);
+su - postgres
 
-        titles.forEach(function (title) {
-            var newElement = document.createElement('p');
-            newElement.className = 'title admonition-title';
-            newElement.textContent = title.textContent;
-            title.parentNode.replaceChild(newElement, title);
-            newElement.parentElement.classList.add('admonition');
-        });
-    });
+git clone -b REL_16_STABLE https://github.com/postgres/postgres postgres_src
+cd postgres_src/
+
+./configure --prefix=/usr/local/pgsql \
+	--enable-tap-tests \
+	--with-python \
+	--with-icu \
+	--with-lz4 \
+	--with-zstd \
+	--enable-debug \
+	--enable-cassert
+
+make -j 4
+make install
+
+# ======================================================
+# 6. Инициализация и запуск БД
+# ======================================================
+
+mkdir /var/lib/postgresql/my_data
+
+/usr/local/pgsql/bin/initdb \
+	-D /var/lib/postgresql/my_data
 
 
-    var informalTableDivs = document.querySelectorAll('div.informaltable');
+cat >> /var/lib/postgresql/my_data/postgresql.conf << EOL
+logging_collector = on
+log_directory = '/var/log/postgresql'
+log_statement = 'all'
+log_min_messages = debug1
+log_duration = on
+log_filename = 'postgresql.log'
+log_destination = 'csvlog'
+log_error_verbosity = verbose
+log_lock_waits = on
+EOL
 
-    informalTableDivs.forEach(function (tableDiv) {
-        // Change the class of the div
-        tableDiv.className = 'table-contents';
+/usr/local/pgsql/bin/pg_ctl \
+	-D /var/lib/postgresql/my_data \
+	start
 
-        // Change the class of the inner table
-        var innerTable = tableDiv.querySelector('table.informaltable');
-        if (innerTable) {
-            innerTable.className = 'table';
-        }
-    });
 
-    var sidebar = document.querySelector('.sidebar-primary-item');
+ps f --forest -u postgres | grep -v "f --forest -u postgres"
 
-    if (sidebar) {
-        // Create the new div element
-        var newDiv = document.createElement('div');
-        newDiv.style.textAlign = 'center';
+tail -f /var/log/postgresql/postgresql.csv
 
-        // Create the image element
-        var img = document.createElement('img');
-        img.src = '_static/images/favicon-96x96.png';
-        img.style.maxWidth = '100%';
-        newDiv.appendChild(img);
-        sidebar.insertBefore(newDiv, sidebar.firstChild);
-    }
-});
+/usr/local/pgsql/bin/psql -c 'select pg_sleep(30)'
+
+# su - postgres -c "/usr/local/pgsql/bin/psql -c 'select pg_sleep(30)'"
+
+/usr/local/pgsql/bin/pg_ctl \
+	-D /var/lib/postgresql/my_data \
+	stop
+
+
+# ======================================================
+# 7. Создание новой функции
+# ======================================================
+
+# Находясь в директории с исходном кодом
+# cd /var/lib/postgresql/postgres_src
+
+cat > src/backend/utils/adt/my_function.c << EOL
+#include "postgres.h"
+
+#include "utils/builtins.h"
+#include "fmgr.h"
+#include "utils/elog.h"
+
+Datum
+my_function(PG_FUNCTION_ARGS)
+{
+    int32 arg = PG_GETARG_INT32(0);
+
+    elog(LOG, "Received argument: %d", arg);
+    Assert(arg != 0);
+
+    if (arg > 1)
+        PG_RETURN_TEXT_P(cstring_to_text("success"));
+    else
+        PG_RETURN_NULL();
+}
+EOL
+
+sed -i '/acl.o \\/i\\tmy_function.o \\' src/backend/utils/adt/Makefile
+
+sed -i "/\]/i \\
+{ oid => '7000', descr => 'teaching function',\\
+  proname => 'my_function', provolatile => 's',\\
+  prorettype => 'text', proargtypes => 'int4',\\
+  prosrc => 'my_function' },\\
+" src/include/catalog/pg_proc.dat
+
+
+make -j 4
+make install
+
+rm -rf /var/lib/postgresql/my_data/*
+
+/usr/local/pgsql/bin/initdb \
+	-D /var/lib/postgresql/my_data
+
+
+cat >> /var/lib/postgresql/my_data/postgresql.conf << EOL
+logging_collector = on
+log_directory = '/var/log/postgresql'
+log_statement = 'all'
+log_min_messages = debug1
+log_duration = on
+log_filename = 'postgresql.log'
+log_destination = 'csvlog'
+log_error_verbosity = verbose
+log_lock_waits = on
+EOL
+
+/usr/local/pgsql/bin/pg_ctl \
+	-D /var/lib/postgresql/my_data \
+	start
+
+
+/usr/local/pgsql/bin/psql -c 'select my_function(30)'
+>>
+	 my_function 
+	-------------
+	 success
+	(1 row)
+
+
+/usr/local/pgsql/bin/psql -c 'select my_function(0)'
+>>
+	server closed the connection unexpectedly
+			This probably means the server terminated abnormally
+			before or while processing the request.
+	connection to server was lost
+
+
+# ======================================================
+# 8. Создание теста для my_function
+# ======================================================
+
+cat > src/test/regress/sql/my_test.sql << EOL
+SELECT my_function(1);
+SELECT my_function(2);
+SELECT my_function(100);
+EOL
+
+cat > src/test/regress/expected/my_test.out << EOL
+SELECT my_function(1);
+ my_function 
+-------------
+ 
+(1 row)
+
+SELECT my_function(2);
+ my_function 
+-------------
+ success
+(1 row)
+
+SELECT my_function(100);
+ my_function 
+-------------
+ success
+(1 row)
+
+EOL
+
+sed -i '1itest: my_test' src/test/regress/parallel_schedule
+
+make check -j 4
+>>
+	# +++ regress check in src/test/regress +++
+	# using temp instance on port 61696 with PID 26274
+	ok 1         - my_test                                    17 ms
+
+
+# ======================================================
+# 9. Точка останова
+# ======================================================
+
+# Открыть новую вкладку терминала для подключения
+# к запущенному контейнеру
+
+docker exec -it my_ubuntu_container /bin/bash
+su - postgres
+
+/usr/local/pgsql/bin/psql
+
+select pg_backend_pid();
+>>
+	 pg_backend_pid 
+	----------------
+			  26445
+	(1 row)
+
+
+# В первой вкладке терминала
+
+gdb -p 26445
+
+(gdb) b my_function 
+Breakpoint 1 at 0x55a520114260: file my_function.c, line 9.
+
+(gdb) c
+Continuing.
+
+Breakpoint 1, my_function (fcinfo=0x55a520939f40) at my_function.c:9
+9	{
+
+(gdb) next
+204		return (int32) X;
+
+(gdb) next
+10	    int32 arg = PG_GETARG_INT32(0);
+
+(gdb) next
+12	    elog(LOG, "Received argument: %d", arg);
+
+(gdb) p arg
+$1 = 4
+
+(gdb) bt     
+#0  my_function (fcinfo=0x55a520939f40) at my_function.c:12
+#1  0x000055a51ff2e2aa in ExecInterpExpr (state=0x55a520939e68, econtext=0x55a520939b90, isnull=<optimized out>) at execExprInterp.c:758
+#2  0x000055a51ff660d9 in ExecEvalExprSwitchContext (isNull=0x7fff5f373967, econtext=0x55a520939b90, state=0x55a520939e68)
+    at ../../../src/include/executor/executor.h:355
+#3  ExecProject (projInfo=0x55a520939e60) at ../../../src/include/executor/executor.h:389
+#4  ExecResult (pstate=<optimized out>) at nodeResult.c:136
+#5  0x000055a51ff321aa in ExecProcNode (node=0x55a520939a80) at ../../../src/include/executor/executor.h:273
+#6  ExecutePlan (execute_once=<optimized out>, dest=0x55a520938000, direction=<optimized out>, numberTuples=0, sendTuples=<optimized out>, operation=CMD_SELECT, 
+    use_parallel_mode=<optimized out>, planstate=0x55a520939a80, estate=0x55a520939858) at execMain.c:1670
+#7  standard_ExecutorRun (queryDesc=0x55a520897b38, direction=<optimized out>, count=0, execute_once=<optimized out>) at execMain.c:365
+#8  0x000055a5200f67af in PortalRunSelect (portal=0x55a5208e6d88, forward=<optimized out>, count=0, dest=<optimized out>) at pquery.c:924
+#9  0x000055a5200f7e91 in PortalRun (portal=portal@entry=0x55a5208e6d88, count=count@entry=9223372036854775807, isTopLevel=isTopLevel@entry=true, 
+    run_once=run_once@entry=true, dest=dest@entry=0x55a520938000, altdest=altdest@entry=0x55a520938000, qc=0x7fff5f373c00) at pquery.c:768
+#10 0x000055a5200f3d64 in exec_simple_query (query_string=0x55a52086d778 "select  my_function(4);") at postgres.c:1274
+#11 0x000055a5200f5909 in PostgresMain (dbname=<optimized out>, username=<optimized out>) at postgres.c:4637
+#12 0x000055a52005d54f in BackendRun (port=0x55a52089bda0, port=0x55a52089bda0) at postmaster.c:4464
+#13 BackendStartup (port=0x55a52089bda0) at postmaster.c:4192
+#14 ServerLoop () at postmaster.c:1782
+#15 0x000055a52005e573 in PostmasterMain (argc=argc@entry=3, argv=argv@entry=0x55a520869180) at postmaster.c:1466
+#16 0x000055a51fd67dd1 in main (argc=3, argv=0x55a520869180) at main.c:198
+
+
+q    => y
+
+# ======================================================
+# 10. Создание патча
+# ======================================================
+
+git status
+
+git add src/backend/utils/adt/my_function.c
+git add src/test/regress/expected/my_test.out
+git add src/test/regress/sql/my_test.sql
+git add src/backend/utils/adt/Makefile
+git add src/include/catalog/pg_proc.dat
+git add src/test/regress/parallel_schedule
+
+git diff --cached
+
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
+
+git commit -am "tmp local commit"
+
+git format-patch -1 HEAD
+
+cat 0001-tmp-local-commit.patch
+>>
+	From da58f605b698dc653782223a80d826d5f6cafe75 Mon Sep 17 00:00:00 2001
+	From: Your Name <you@example.com>
+	Date: Wed, 4 Oct 2023 00:40:39 +0200
+	Subject: [PATCH] tmp local commit
+	---
+	 src/backend/utils/adt/Makefile        |  1 +
+	 src/backend/utils/adt/my_function.c   | 19 +++++++++++++++++++
+	 src/include/catalog/pg_proc.dat       |  5 +++++
+	 src/test/regress/expected/my_test.out | 18 ++++++++++++++++++
+	 src/test/regress/parallel_schedule    |  1 +
+	 src/test/regress/sql/my_test.sql      |  3 +++
+
+	...........
+
+
+# ======================================================
+# Готово
+# ======================================================
