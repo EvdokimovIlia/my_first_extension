@@ -26,15 +26,15 @@ Datum
 generate_check_digit(PG_FUNCTION_ARGS)
 {
 	text  *name = PG_GETARG_TEXT_PP(0);
-	uint64_t id = atol( name->vl_dat );
+	uint64_t id = atol(name->vl_dat);
 	uint8_t check_digit = 0;
 
-	if(id > 99999999) ///< id must has 8 size length
+	if (id > 99999999) ///< id must has 8 size length
 	{
 		return -1;
 	}
 
-	check_digit = calculate_sum_id( id );
+	check_digit = calculate_sum_id(id);
 	id = id * 10 + check_digit;
 
 	return id;

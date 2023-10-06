@@ -24,9 +24,9 @@ Datum
 validate_check_digit(PG_FUNCTION_ARGS)
 {
 	text  *name = PG_GETARG_TEXT_PP(0);
-	uint64_t id = atol( name->vl_dat );
+	uint64_t id = atol(name->vl_dat);
 
-	if(id > 999999999) ///< id must has 9 size length
+	if (id > 999999999) ///< id must has 9 size length
 	{
 		return false;
 	}
